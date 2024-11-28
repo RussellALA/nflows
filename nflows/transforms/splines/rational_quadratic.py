@@ -63,6 +63,9 @@ def unconstrained_rational_quadratic_spline(
     return outputs, logabsdet
 
 
+def stable_log(x, eps=1e-8):
+    return torch.log(x + eps)
+
 def rational_quadratic_spline(
     inputs,
     unnormalized_widths,
@@ -97,11 +100,11 @@ def rational_quadratic_spline(
     cumwidths[..., -1] = right
     widths = cumwidths[..., 1:] - cumwidths[..., :-1]
 
-    if enable_identity_init: #flow is the identity if initialized with parameters equal to zero
-        beta = np.log(2) / (1 - min_derivative)
-    else: #backward compatibility
-        beta = 1
-    derivatives = min_derivative + F.softplus(unnormalized_derivatives, beta=beta)
+    # if enable_identity_init: #flow is the identity if initialized with parameters equal to zero
+    #     beta = np.log(2) / (1 - min_derivative)
+    # else: #backward compatibility
+    #     beta = 1
+    derivatives = min_derivative + unnormalized_derivatives # torch.nn.functional.softplus(unnormalized_derivatives, beta=np.log(2)/ (1 - min_derivative))
 
     heights = F.softmax(unnormalized_heights, dim=-1)
     heights = min_bin_height + (1 - min_bin_height * num_bins) * heights
@@ -155,7 +158,7 @@ def rational_quadratic_spline(
             + 2 * input_delta * theta_one_minus_theta
             + input_derivatives * (1 - root).pow(2)
         )
-        logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
+        logabsdet = stable_log(derivative_numerator) - 2 * stable_log(denominator)
 
         return outputs, -logabsdet
     else:
@@ -176,6 +179,6 @@ def rational_quadratic_spline(
             + 2 * input_delta * theta_one_minus_theta
             + input_derivatives * (1 - theta).pow(2)
         )
-        logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
+        logabsdet = stable_log(derivative_numerator) - 2 * stable_log(denominator)
 
         return outputs, logabsdet
