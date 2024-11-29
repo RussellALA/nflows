@@ -80,6 +80,7 @@ def rational_quadratic_spline(
     min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
     min_derivative=DEFAULT_MIN_DERIVATIVE,
     enable_identity_init=False,
+    is_normalized=False,
 ):
     if torch.min(inputs) < left or torch.max(inputs) > right:
         raise InputOutsideDomain()
@@ -91,7 +92,10 @@ def rational_quadratic_spline(
     if min_bin_height * num_bins > 1.0:
         raise ValueError("Minimal bin height too large for the number of bins")
 
-    widths = F.softmax(unnormalized_widths, dim=-1)
+    if is_normalized:
+        widths = unnormalized_widths
+    else:
+        widths = F.softmax(unnormalized_widths, dim=-1)
     widths = min_bin_width + (1 - min_bin_width * num_bins) * widths
     cumwidths = torch.cumsum(widths, dim=-1)
     cumwidths = F.pad(cumwidths, pad=(1, 0), mode="constant", value=0.0)
@@ -104,9 +108,16 @@ def rational_quadratic_spline(
     #     beta = np.log(2) / (1 - min_derivative)
     # else: #backward compatibility
     #     beta = 1
-    derivatives = min_derivative + unnormalized_derivatives # torch.nn.functional.softplus(unnormalized_derivatives, beta=np.log(2)/ (1 - min_derivative))
+    if is_normalized:
+        derivatives = min_derivative + unnormalized_derivatives 
+    else:
+        derivatives = min_derivative + torch.nn.functional.softplus(unnormalized_derivatives, beta=1)
 
-    heights = F.softmax(unnormalized_heights, dim=-1)
+    if is_normalized:
+        heights = unnormalized_heights
+    else:
+        heights = F.softmax(unnormalized_heights, dim=-1)
+
     heights = min_bin_height + (1 - min_bin_height * num_bins) * heights
     cumheights = torch.cumsum(heights, dim=-1)
     cumheights = F.pad(cumheights, pad=(1, 0), mode="constant", value=0.0)
